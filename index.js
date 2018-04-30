@@ -1,5 +1,44 @@
 /* jshint esversion:6 */
 
+/////////////////
+// Definition //
+///////////////
+
+const hero = {
+  name: 'Hero',
+  level: 1,
+  hp: 100,
+  mp: 20,
+  attacks: [{
+    cost: 0,
+    damage: 10,
+    loading: 1,
+    name: 'Kick',
+    origin: 'hero',
+    target: 'monster'
+  }, {
+    cost: 5,
+    damage: 50,
+    loading: 5,
+    name: 'H20',
+    origin: 'hero',
+    target: 'monster'
+  }],
+  stack: [],
+  currentAttack: null
+};
+
+////////////////////////////////////
+// Generate battle and render it //
+//////////////////////////////////
+
+const battle = generateBattle(hero);
+battle.render();
+
+////////////
+// Utils //
+//////////
+
 function render(domId, content) {
   const parser = new DOMParser();
   const doc = R.path(['body', 'innerHTML'], parser.parseFromString(content, 'text/html'));
@@ -14,6 +53,9 @@ function template(view, list) {
   return R.join('', mapIndexed(view, list));
 }
 
+////////////////////
+// Battle engine //
+//////////////////
 
 function generateBattle(hero) {
   const p = R.prop(R.__, hero);
@@ -76,41 +118,16 @@ function generateBattle(hero) {
   };
 }
 
-const hero = {
-  name: 'Hero',
-  level: 1,
-  hp: 100,
-  mp: 20,
-  attacks: [{
-    cost: 0,
-    damage: 10,
-    loading: 1,
-    name: 'Kick',
-    origin: 'hero',
-    target: 'monster'
-  }, {
-    cost: 5,
-    damage: 50,
-    loading: 5,
-    name: 'H20',
-    origin: 'hero',
-    target: 'monster'
-  }],
-  stack: [],
-  currentAttack: null
-};
 
 
-const battle = generateBattle(hero);
 
-battle.render();
-
-function isAttackPossible(possibleOrNot) {
-  return (possibleOrNot) ? null : 'disabled="true"';
-}
-
-
+// attackView :: object -> string
 function attackView(attack) {
+  // isAttackPossible :: boolean -> null || string
+  function isAttackPossible(possibleOrNot) {
+    return (possibleOrNot) ? null : 'disabled="true"';
+  }
+
   const p = R.prop(R.__, attack);
   const isPossible = isAttackPossible(battle.canAttack(p('origin'), p('cost')));
 
@@ -136,8 +153,10 @@ function attackView(attack) {
           </button>`;
 }
 
-function stackView(stack, index) {
-  const p = R.prop(R.__, stack);
+// stackView :: (object, number) -> string
+function stackView(nextAttack, index) {
+  const p = R.prop(R.__, nextAttack);
+  const canRemoveAttackFromStack = (R.equals(0, index)) ? 'disabled="true"' : null;
 
   registerEvents(
     [{
@@ -149,6 +168,7 @@ function stackView(stack, index) {
   return `<li>
             ${p('name')}
             <button
+              ${canRemoveAttackFromStack}
               data-cost="${p('cost')}"
               data-origin="${p('origin')}"
               data-function-identifier="cancelAttack"
@@ -159,6 +179,7 @@ function stackView(stack, index) {
           </li>`;
 }
 
+// fighterView :: object -> string
 function fighterView(fighterStatus) {
   const p = R.prop(R.__, fighterStatus);
 
@@ -173,10 +194,12 @@ function fighterView(fighterStatus) {
           </div>`;
 }
 
+// loadingToMillisec :: number -> number
 function loadingToMillisec(loading) {
   return R.multiply(loading, 1000);
 }
 
+// registerAttack :: DOM event -> void
 function registerAttack(event) {
   const p = R.prop(R.__, R.path(['target', 'dataset'], event));
 
@@ -192,6 +215,7 @@ function registerAttack(event) {
   }
 }
 
+// removeAttackFromStack :: object -> void
 function removeAttackFromStack(attack) {
   const p = R.prop(R.__, attack);
 
@@ -236,10 +260,10 @@ function applyAttack(attack) {
 function loadAttack(attack) {
   const p = R.prop(R.__, attack);
 
-  battle.restoreMP(p('origin'), p('cost'));
+  battle.loseMP(p('origin'), p('cost'));
   battle.loadAttack({
-    damage: p('damage'),
     cost: p('cost'),
+    damage: p('damage'),
     loading: p('loading'),
     name: p('name'),
     origin: p('origin'),
