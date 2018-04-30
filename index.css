@@ -6,7 +6,11 @@
   align-content: flex-start;
 }
 
-button {
+button.attack {
   padding: 1em;
   margin: 0.25em;
+}
+
+li {
+  margin-bottom: 5px;
 }

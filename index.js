@@ -9,7 +9,9 @@ function render(domId, content) {
 }
 
 function template(view, list) {
-  return R.join('', R.map(view, list));
+  const mapIndexed = R.addIndex(R.map);
+
+  return R.join('', mapIndexed(view, list));
 }
 
 
@@ -31,7 +33,7 @@ function generateBattle(hero) {
       }, {
         cost: 12,
         damage: 50,
-        loading: 3,
+        loading: 8,
         name: 'Fire breath',
         origin: 'monster',
         target: 'hero'
@@ -46,7 +48,7 @@ function generateBattle(hero) {
     loadAttack: (attack) => {
       store[attack.origin].stack.push(attack);
       if (R.isNil(store[attack.origin].currentAttack)) {
-        store[attack.origin].currentAttack = asyncAttack(loadingToMillisec(attack.loading), attack);
+        store[attack.origin].currentAttack = asyncAttack(attack.loading, attack);
       }
     },
     loseMP: (toWho, amount) => store[toWho].mp -= amount,
@@ -55,10 +57,12 @@ function generateBattle(hero) {
       store[who].stack.splice(0, 1);
       if (!R.isEmpty(store[who].stack)) {
         const nextAttack = R.head(store[who].stack);
-        store[who].currentAttack = asyncAttack(loadingToMillisec(nextAttack.loading), nextAttack);
+        store[who].currentAttack = asyncAttack(nextAttack.loading, nextAttack);
       }
     },
+    removeAttackFromStack: (who, indexInStack) => store[who].stack.splice(indexInStack, 1),
     render: () => render('#battle', template(fighterView, [store.hero, store.monster])),
+    restoreMP: (toWho, amount) => store[toWho].mp += amount,
     stack: (who) => store[who].stack,
     store: () => store,
     currentAttack: (who, value = undefined) => {
@@ -80,7 +84,7 @@ const hero = {
   attacks: [{
     cost: 0,
     damage: 10,
-    loading: 2,
+    loading: 1,
     name: 'Kick',
     origin: 'hero',
     target: 'monster'
@@ -114,7 +118,8 @@ function attackView(attack) {
     [{
       type: 'click',
       funct: registerAttack
-    }]);
+    }]
+  );
 
   return `<button
             class="attack"
@@ -131,6 +136,29 @@ function attackView(attack) {
           </button>`;
 }
 
+function stackView(stack, index) {
+  const p = R.prop(R.__, stack);
+
+  registerEvents(
+    [{
+      type: 'click',
+      funct: cancelAttack
+    }]
+  );
+
+  return `<li>
+            ${p('name')}
+            <button
+              data-cost="${p('cost')}"
+              data-origin="${p('origin')}"
+              data-function-identifier="cancelAttack"
+              data-stack-index="${index}"
+              >
+              X
+            </button>
+          </li>`;
+}
+
 function fighterView(fighterStatus) {
   const p = R.prop(R.__, fighterStatus);
 
@@ -139,6 +167,9 @@ function fighterView(fighterStatus) {
             <h3>HP ${p('hp')}</h3>
             <p>MP ${p('mp')}</p>
             <div>${template(attackView, p('attacks'))}</div>
+            <div>
+              <ul>${template(stackView, p('stack'))}</ul>
+            </div>
           </div>`;
 }
 
@@ -154,14 +185,35 @@ function registerAttack(event) {
       cost: Number(p('cost')),
       damage: Number(p('damage')),
       loading: p('loading'),
+      name: p('name'),
       origin: p('origin'),
       target: p('target')
     });
   }
 }
 
+function removeAttackFromStack(attack) {
+  const p = R.prop(R.__, attack);
+
+  battle.restoreMP(p('origin'), p('cost'));
+  battle.removeAttackFromStack(p('origin'), p('stackIndex'));
+  battle.render();
+}
+
+function cancelAttack(event) {
+  const p = R.prop(R.__, R.path(['target', 'dataset'], event));
+
+  if (R.equals(p('functionIdentifier'), 'cancelAttack')) {
+    removeAttackFromStack({
+      cost: Number(p('cost')),
+      stackIndex: p('stackIndex'),
+      origin: p('origin'),
+    });
+  }
+}
+
 function asyncAttack(delay, params) {
-  return window.setTimeout(applyAttack, delay, params);
+  return window.setTimeout(applyAttack, loadingToMillisec(delay), params);
 }
 
 
@@ -176,18 +228,20 @@ function applyAttack(attack) {
   const p = R.prop(R.__, attack);
 
   battle.loseHP(p('target'), p('damage'));
-  battle.render();
   battle.currentAttack(p('origin'), null);
   battle.nextAttack(p('origin'));
+  battle.render();
 }
 
 function loadAttack(attack) {
   const p = R.prop(R.__, attack);
 
-  battle.loseMP(p('origin'), p('cost'));
+  battle.restoreMP(p('origin'), p('cost'));
   battle.loadAttack({
     damage: p('damage'),
+    cost: p('cost'),
     loading: p('loading'),
+    name: p('name'),
     origin: p('origin'),
     target: p('target')
   });
