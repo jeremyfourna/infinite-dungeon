@@ -61,7 +61,10 @@ battle.render();
 // render :: (string, string) -> void
 function render(domId, content) {
   const parser = new DOMParser();
-  const doc = R.path(['body', 'innerHTML'], parser.parseFromString(content, 'text/html'));
+  const doc = R.path(
+    ['body', 'innerHTML'],
+    parser.parseFromString(content, 'text/html')
+  );
   const domElements = document.querySelectorAll(domId);
 
   R.forEach(cur => cur.innerHTML = doc, domElements);
